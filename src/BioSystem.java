@@ -8,10 +8,15 @@ public class BioSystem {
 
     private int L, K;
     private double alpha, c_max;
-    Microhabitat[] microhabitats;
+    private Microhabitat[] microhabitats;
     private int initialMaxRandPop = 500; // I'll fill the first few microhabitats with a random number (0-maxrandpop) of random bacteria
     private int initialPopZone = 200;
     private double timeElapsed;
+
+    //counters to keep track of the number of events that happen
+
+    private int deathCounter, replicationCounter, immigrationCounter,
+            forcedImmigrationCounter, migrationCounter, nothingCounter;
 
 
     public BioSystem(int L, int K, double alpha, double c_max){
@@ -29,9 +34,18 @@ public class BioSystem {
         microhabitats[L-1].setSurface(true);
         microhabitats[L-1].setBiofilm_region(true);
 
+        deathCounter = 0; replicationCounter = 0; immigrationCounter = 0;
+        forcedImmigrationCounter = 0; migrationCounter = 0; nothingCounter = 0;
+
     }
 
     public double getTimeElapsed(){return timeElapsed;}
+    public int getDeathCounter(){return deathCounter;}
+    public int getReplicationCounter(){return replicationCounter;}
+    public int getImmigrationCounter(){return immigrationCounter;}
+    public int getForcedImmigrationCounter(){return forcedImmigrationCounter;}
+    public int getMigrationCounter(){return migrationCounter;}
+    public int getNothingCounter(){return nothingCounter;}
 
 
     public int getTotalN(){
@@ -86,19 +100,27 @@ public class BioSystem {
         int microhab_index = 0;
         int bacteria_index = 0;
 
-        forloop:
-        for(int i = 0; i < L; i++){
-            if(totalCounter + microhabitats[i].getN() <= randBacteriaNumber){
-                totalCounter += microhabitats[i].getN();
-                continue forloop;
+        int N_tot = getTotalN();
+        // if we pick the bacteria 'outside the system', then we'll see if it gets immigrated
+        if(randBacteriaNumber == N_tot+1) {
+            return new int[]{-1, -1};
 
-            }else{
-                microhab_index = i;
-                bacteria_index = randBacteriaNumber - totalCounter;
-                break forloop;
+        } else {
+
+            forloop:
+            for(int i = 0; i < L; i++) {
+                if(totalCounter + microhabitats[i].getN() <= randBacteriaNumber) {
+                    totalCounter += microhabitats[i].getN();
+                    continue forloop;
+
+                } else {
+                    microhab_index = i;
+                    bacteria_index = randBacteriaNumber - totalCounter;
+                    break forloop;
+                }
             }
+            return new int[]{microhab_index, bacteria_index};
         }
-        return new int[]{microhab_index, bacteria_index};
     }
 
 
@@ -139,19 +161,47 @@ public class BioSystem {
         microhabitats[mh_index].removeABacterium(bac_index);
     }
 
+    public void immigrate(int mh_index){
+        microhabitats[mh_index].addARandomBacterium();
+    }
+
 
     public void performAction(){
+        //TODO add update for finding edge of biofilm
+        //TODO should probably be done at the start of performAction
 
         int N = getTotalN(); //no. of bacteria in the system
-        double R_max = 5.2;
+        double R_max = 105.2;
+        double immigrationRate = 100.;
+        boolean nothingHappened = true;
 
         if(N==0){
             microhabitats[L-1].addARandomBacterium();
+            forcedImmigrationCounter++;
         }else{
 
-            int randBacIndex = rand.nextInt(getTotalN());
+            int randBacIndex = rand.nextInt(getTotalN()+1); //add +1 to allow for the immigration aspect
             int [] randIndexes = getRandIndexes(randBacIndex);
             int microhabIndex = randIndexes[0], bacteriaIndex = randIndexes[1];
+
+
+            // this is an immigration event
+            if(microhabIndex < 0){
+
+                if(rand.nextDouble()*R_max <= immigrationRate){
+                    microhabitats[getBiofilmEdge()].addARandomBacterium();
+                    immigrationCounter++;
+                    nothingHappened = false;
+
+                }
+                if(nothingHappened) nothingCounter++;
+
+                timeElapsed += 1./(double)N*R_max;
+                return;
+            }
+
+
+            //this is for all other events
             Microhabitat rand_mh = microhabitats[microhabIndex];
 
             double replication_rate = rand_mh.replicationRate(bacteriaIndex);
@@ -161,18 +211,36 @@ public class BioSystem {
             if(replication_rate >= 0.){
                 double rand_chance = rand.nextDouble()*R_max;
 
-                if(rand_chance <= migrate_rate) migrate(microhabIndex, bacteriaIndex);
-                else if(rand_chance > migrate_rate && rand_chance <= replication_rate+migrate_rate) replicate(microhabIndex, bacteriaIndex);
+                if(rand_chance <= migrate_rate) {
+                    migrate(microhabIndex, bacteriaIndex);
+                    migrationCounter++;
+                    nothingHappened = false;
+                }
+                else if(rand_chance > migrate_rate && rand_chance <= replication_rate+migrate_rate) {
+                    replicate(microhabIndex, bacteriaIndex);
+                    replicationCounter++;
+                    nothingHappened = false;
+                }
 
             }else{
-                double rand_chance = rand.nextDouble();
+                double rand_chance = rand.nextDouble()*R_max;
                 replication_rate*=-1.;
 
-                if(rand_chance <= migrate_rate) migrate(microhabIndex, bacteriaIndex);
-                else if(rand_chance > migrate_rate && rand_chance <= replication_rate+migrate_rate) die(microhabIndex, bacteriaIndex);
+                if(rand_chance <= migrate_rate){
+                    migrate(microhabIndex, bacteriaIndex);
+                    migrationCounter++;
+                    nothingHappened = false;
+                }
+                else if(rand_chance > migrate_rate && rand_chance <= replication_rate+migrate_rate){
+                    die(microhabIndex, bacteriaIndex);
+                    deathCounter++;
+                    nothingHappened = false;
+                }
             }
         }
 
+
+        if(nothingHappened) nothingCounter++;
         timeElapsed += 1./(double)N*R_max;
     }
 
