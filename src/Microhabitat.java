@@ -37,6 +37,7 @@ public class Microhabitat {
     public void setSurface(boolean surface){this.surface = surface;}
     public boolean getBiofilm_region(){return this.biofilm_region;}
     public void setBiofilm_region(boolean biofilm_region){this.biofilm_region = biofilm_region;}
+    public double getThreshold_stickiness(){return threshold_stickiness;}
 
     public double fractionFull(){
         return (double)getN()/(double)K;

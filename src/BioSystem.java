@@ -33,6 +33,7 @@ public class BioSystem {
 
         microhabitats[L-1].setSurface(true);
         microhabitats[L-1].setBiofilm_region(true);
+        microhabitats[L-1].randomlyPopulate(100);
 
         deathCounter = 0; replicationCounter = 0; immigrationCounter = 0;
         forcedImmigrationCounter = 0; migrationCounter = 0; nothingCounter = 0;
@@ -102,7 +103,7 @@ public class BioSystem {
 
         int N_tot = getTotalN();
         // if we pick the bacteria 'outside the system', then we'll see if it gets immigrated
-        if(randBacteriaNumber == N_tot+1) {
+        if(randBacteriaNumber == N_tot) {
             return new int[]{-1, -1};
 
         } else {
@@ -165,6 +166,13 @@ public class BioSystem {
         microhabitats[mh_index].addARandomBacterium();
     }
 
+    public void updateBiofilmSize(){
+
+        for(Microhabitat m : microhabitats){
+            if(m.fractionFull() >= m.getThreshold_stickiness()) m.setBiofilm_region(true);
+        }
+    }
+
 
     public void performAction(){
         //TODO add update for finding edge of biofilm
@@ -176,6 +184,7 @@ public class BioSystem {
         boolean nothingHappened = true;
 
         if(N==0){
+            //this forced immigration keeps the no. of bacteria > 0, to prevent division by 0 errors
             microhabitats[L-1].addARandomBacterium();
             forcedImmigrationCounter++;
         }else{
@@ -185,7 +194,7 @@ public class BioSystem {
             int microhabIndex = randIndexes[0], bacteriaIndex = randIndexes[1];
 
 
-            // this is an immigration event
+            // this is an immigration event //////////////////////////////
             if(microhabIndex < 0){
 
                 if(rand.nextDouble()*R_max <= immigrationRate){
@@ -196,12 +205,15 @@ public class BioSystem {
                 }
                 if(nothingHappened) nothingCounter++;
 
+                updateBiofilmSize();
                 timeElapsed += 1./(double)N*R_max;
                 return;
             }
-
+            //////////////////////////////////////////////////////////////
 
             //this is for all other events
+
+            System.out.println("N: "+String.valueOf(N)+"\tmh: "+String.valueOf(microhabIndex)+"\tb: "+String.valueOf(bacteriaIndex));
             Microhabitat rand_mh = microhabitats[microhabIndex];
 
             double replication_rate = rand_mh.replicationRate(bacteriaIndex);
@@ -239,12 +251,56 @@ public class BioSystem {
             }
         }
 
-
+        updateBiofilmSize();
         if(nothingHappened) nothingCounter++;
         timeElapsed += 1./(double)N*R_max;
     }
 
 
+
+    public static void getNumberOfEvents(double alpha){
+
+        int K = 500, L = 500;
+        int nReps = 4;
+        int duration = 500;
+        int nCounters = 6;
+        double c_max = 10.;
+        double interval = duration/20.;
+
+        String filename = "pyrithione-randAlgorithmEvents";
+
+        int[][] allEventCounts = new int[nReps][];
+
+        String[] counterHeaders = {"migration", "immigration", "forced immigr", "replication", "death", "nothing"};
+
+
+        for(int r = 0; r < nReps; r++){
+
+            BioSystem bs = new BioSystem(L, K, alpha, c_max);
+
+            while(bs.getTimeElapsed() <= duration){
+
+                bs.performAction();
+                System.out.println("test");
+                double timeElapsed = bs.getTimeElapsed();
+
+                if(timeElapsed%interval >= 0. && timeElapsed%interval <= 0.01){
+                    System.out.println("rep: "+String.valueOf(r)+"\ttime: "+String.valueOf(timeElapsed));
+                }
+            }
+
+            int[] eventCounts = {bs.getMigrationCounter(), bs.getImmigrationCounter(), bs.getForcedImmigrationCounter(),
+                    bs.getReplicationCounter(), bs.getDeathCounter(), bs.getNothingCounter()};
+
+            allEventCounts[r] = eventCounts;
+        }
+
+        double[] avgResults = Toolbox.averagedResults(allEventCounts);
+
+        Toolbox.writeSimpleArrayAndHeadersToFile(filename, counterHeaders, avgResults);
+
+
+    }
 
 
 

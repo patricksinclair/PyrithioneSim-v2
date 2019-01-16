@@ -6,6 +6,10 @@ public class PyrithioneV2Main {
         double mu = Math.log(7.92016113), sigma = 0.10018864;
         LogNormalDistribution logNormal = new LogNormalDistribution(mu, sigma);
 
-        System.out.println(logNormal.getNumericalMean());
+        //System.out.println(logNormal.getNumericalMean());
+
+        //alpha = 0.01 for this
+
+        BioSystem.getNumberOfEvents(0.01);
     }
 }
